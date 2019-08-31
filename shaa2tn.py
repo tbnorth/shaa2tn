@@ -6,11 +6,11 @@ Terry N. Brown terrynbrown@gmail.com Tue Aug 27 19:21:47 CDT 2019
 """
 
 import argparse
-import json
 import os
 import random
-import tarfile
 import xml.etree.ElementTree as ET
+
+from trilium_io import attr_template, node_template, write_tar
 
 # used to generate Trilium node IDs
 ID_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -119,81 +119,28 @@ def make_node_id():
 
 def write_bookmarks(tarname, bookmarks):
     """writes metadata and .md files to folder and creates .tar"""
-    tardir = tarname + '.d'
-    rootdir = os.path.join(tardir, 'ImportRoot')
-    os.makedirs(rootdir)  # fail if exists, avoid accidental overwrite
-    files = []  # list of metadata dicts for files in archive
-    outputs = []  # list of (filesystem-path, archive-name) pairs
 
+    items = []
     for bookmark_i, bookmark in enumerate(bookmarks):
-        attrs = []
-        for attr_i, tag in enumerate(bookmark['tags'] or []):
-            attrs.append(
+        node = node_template(
+            {'title': bookmark['title'], 'body': bookmark['body']}
+        )
+        items.append(node)
+        node['_ext']['tags'].extend(bookmark['tags'])
+        attrs = node['attributes']
+        attrs.append(
+            attr_template(
                 {
                     "type": "label",
-                    "name": "tag",
-                    "value": tag,
-                    "isInheritable": False,
-                    "position": attr_i + 1,
+                    "name": "shaarli_date",
+                    "value": bookmark['add_date'],
                 }
             )
-        attrs.append(
-            {
-                "type": "label",
-                "name": "shaarli_date",
-                "value": bookmark['add_date'],
-                "isInheritable": False,
-                "position": len(attrs) + 1,
-            }
-        )
-        files.append(
-            {
-                "isClone": False,
-                "noteId": make_node_id(),
-                "title": bookmark['title'],
-                "notePosition": bookmark_i,
-                "prefix": None,
-                "isExpanded": 1,
-                "type": "text",
-                "mime": "text/html",
-                "attributes": attrs,
-                "links": [],
-                "format": "markdown",
-            }
         )
         if bookmark['body']:
-            datafile = "md%07d.md" % bookmark_i
-            files[-1]['dataFileName'] = datafile
-            datapath = os.path.join(rootdir, datafile)
-            outputs.append((datapath, datafile))
-            with open(datapath, 'w') as out:
-                out.write(bookmark['body'])
+            node['_ext']['body'] = bookmark['body']
 
-    root = {
-        "isClone": False,
-        "noteId": make_node_id(),
-        "title": "Import root",
-        "notePosition": 0,
-        "prefix": None,
-        "isExpanded": 1,
-        "type": "text",
-        "mime": "text/html",
-        "attributes": [],
-        "links": [],
-        "format": "markdown",
-        "dirFileName": "ImportRoot",
-        "children": files,
-    }
-    data = {"formatVersion": 1, "appVersion": "0.34.3", "files": [root]}
-    metafile = os.path.join(tardir, '!!!meta.json')
-    json.dump(data, open(metafile, 'w'), indent='\t')
-    tar = tarfile.open(tarname, mode='w')
-    tar.add(metafile, '!!!meta.json')
-    tar.add(rootdir, "ImportRoot/")  # add the directory by itself
-    for path, name in outputs:
-        # add the files
-        tar.add(path, "ImportRoot/%s" % name)
-    tar.close()
+    write_tar(tarname, items)
 
 
 def main():
