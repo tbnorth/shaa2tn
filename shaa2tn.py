@@ -25,6 +25,11 @@ def make_parser():
     )
     parser.add_argument("shaarli", help="The shaarli file to process")
     parser.add_argument("trilium", help="Trilium output file")
+    parser.add_argument(
+        "--node-type",
+        help="'html' or 'markdown' nodes created in Trilium",
+        default="html",
+    )
 
     return parser
 
@@ -117,7 +122,7 @@ def make_node_id():
     return ''.join(random.choices(ID_CHARS, k=12))
 
 
-def write_bookmarks(tarname, bookmarks):
+def write_bookmarks(opt, bookmarks):
     """writes metadata and .md files to folder and creates .tar"""
 
     items = []
@@ -125,6 +130,8 @@ def write_bookmarks(tarname, bookmarks):
         node = node_template(
             {'title': bookmark['title'], 'body': bookmark['body']}
         )
+        if opt.node_type == 'markdown':
+            node.update({'type': "code", 'mime': "text/x-markdown"})
         items.append(node)
         node['_ext']['tags'].extend(bookmark['tags'])
         attrs = node['attributes']
@@ -140,7 +147,7 @@ def write_bookmarks(tarname, bookmarks):
         if bookmark['body']:
             node['_ext']['body'] = bookmark['body']
 
-    write_tar(tarname, items)
+    write_tar(opt.trilium, items)
 
 
 def main():
@@ -155,7 +162,7 @@ def main():
     if not opt.trilium.lower().endswith('.tar'):
         opt.trilium += '.tar'
     bookmarks = get_bookmarks(opt.shaarli)
-    write_bookmarks(opt.trilium, bookmarks)
+    write_bookmarks(opt, bookmarks)
 
 
 if __name__ == "__main__":
